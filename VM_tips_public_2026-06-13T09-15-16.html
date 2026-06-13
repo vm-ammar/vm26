@@ -1,0 +1,453 @@
+<html lang="sv"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>VM-tips 2026 - Tipstävling</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{font-family:'Segoe UI','Roboto',sans-serif;background:linear-gradient(135deg,rgba(10,46,31,0.95),rgba(26,71,53,0.95));color:#1e2a3a;min-height:100vh;}
+        .header{background:linear-gradient(135deg,#0a2e1f,#1a4735);padding:1rem;text-align:center;border-bottom:3px solid #FFD700;cursor:pointer;}
+        .header h1{color:#FFD700;font-size:1.8rem;}
+        .admin-login-popup{position:fixed;top:70px;right:20px;background:white;padding:1rem;border-radius:1rem;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:1000;display:none;}
+        .container{max-width:1400px;margin:0 auto;padding:1rem;}
+        .admin-bar{background:rgba(255,255,255,0.95);border-radius:1rem;padding:0.8rem 1rem;margin-bottom:1rem;display:none;flex-wrap:wrap;gap:0.8rem;align-items:center;}
+        .admin-bar.active{display:flex;}
+        .btn{padding:0.5rem 1.2rem;border:none;border-radius:2rem;cursor:pointer;font-weight:bold;transition:all 0.2s;font-size:0.85rem;}
+        .btn-primary{background:#1a4d3e;color:white;}
+        .btn-primary:hover{background:#0f3a2e;}
+        .btn-danger{background:#dc2626;color:white;}
+        .btn-success{background:#10b981;color:white;}
+        .btn-warning{background:#f59e0b;color:white;}
+        .btn-export{background:#8b5cf6;color:white;}
+        .btn-remove{background:#f97316;color:white;}
+        .btn-remove:hover{background:#ea580c;}
+        .btn-refresh{background:#3b82f6;color:white;}
+        .btn-refresh:hover{background:#2563eb;}
+        .player-bar{background:rgba(255,255,255,0.9);border-radius:1rem;padding:0.8rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;}
+        .player-bar select{padding:0.4rem 1rem;border-radius:2rem;border:1px solid #ccc;min-width:150px;}
+        .import-bar{background:rgba(255,255,255,0.9);border-radius:1rem;padding:0.8rem 1rem;margin-bottom:1rem;display:none;align-items:center;gap:0.8rem;flex-wrap:wrap;}
+        .import-bar.active{display:flex;}
+        .file-input-wrapper{position:relative;display:inline-block;}
+        .file-input-wrapper input{position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;top:0;left:0;}
+        .main-layout{display:grid;grid-template-columns:300px 1fr;gap:1rem;}
+        @media (max-width:900px){.main-layout{grid-template-columns:1fr;}}
+        .left-sidebar{display:flex;flex-direction:column;gap:1rem;}
+        .content-area{background:rgba(255,255,255,0.95);border-radius:1rem;padding:1rem;}
+        .total-goals-section{background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border-radius:0.8rem;padding:0.8rem;margin-bottom:1rem;text-align:center;}
+        .total-goals-value{font-size:1.5rem;font-weight:bold;color:#1a4d3e;background:white;display:inline-block;padding:0.2rem 1rem;border-radius:2rem;}
+        .matches-container{overflow-x:auto;max-height:600px;overflow-y:auto;}
+        .match-table{width:100%;border-collapse:collapse;font-size:0.75rem;}
+        .match-table th{background:#1a4d3e;color:white;padding:0.5rem;text-align:left;position:sticky;top:0;}
+        .match-table td{padding:0.4rem 0.5rem;border-bottom:1px solid #e2e8f0;}
+        .tip-pending{color:#2563eb !important;font-weight:bold;}
+        .tip-correct{color:#16a34a !important;font-weight:bold;}
+        .tip-wrong{color:#dc2626 !important;font-weight:bold;}
+        .no-tips{color:#999;font-style:italic;}
+        .sidebar-card{background:rgba(255,255,255,0.95);border-radius:1rem;padding:0.8rem;}
+        .sidebar-title{font-size:0.9rem;font-weight:bold;color:#1a4d3e;margin-bottom:0.5rem;padding-bottom:0.3rem;border-bottom:2px solid #FFD700;}
+        .player-list-item{display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid #e2e8f0;cursor:pointer;}
+        .player-list-item.active{background:#dcfce7;font-weight:bold;}
+        .live-indicator{display:inline-flex;align-items:center;gap:0.3rem;font-size:0.7rem;color:#10b981;background:#f0fdf4;padding:0.15rem 0.5rem;border-radius:1rem;}
+        .live-dot{width:5px;height:5px;background:#10b981;border-radius:50%;animation:pulse 1.5s infinite;}
+        @keyframes pulse{0%{opacity:0.5;}50%{opacity:1;transform:scale(1.2);}100%{opacity:0.5;}}
+        .import-status{font-size:0.75rem;padding:0.4rem;border-radius:0.5rem;margin-top:0.5rem;}
+        .import-status.success{background:#f0fdf4;color:#059669;}
+        .import-status.error{background:#fef2f2;color:#dc2626;}
+        .status-upcoming{color:#2563eb;}
+        .status-played{color:#16a34a;}
+        .top-player-item{display:flex;justify-content:space-between;padding:0.3rem 0;border-bottom:1px solid #e2e8f0;}
+        .update-status{font-size:0.7rem;padding:0.2rem 0.5rem;border-radius:1rem;background:#fef3c7;color:#92400e;margin-left:10px;}
+        .update-status.success{background:#f0fdf4;color:#059669;}
+        .update-status.error{background:#fef2f2;color:#dc2626;}
+        .manual-result-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:1.5rem;border-radius:1rem;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:1001;display:none;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;}
+        .manual-result-popup.active{display:block;}
+        .manual-result-row{display:flex;align-items:center;justify-content:space-between;padding:0.5rem;border-bottom:1px solid #e2e8f0;}
+        .manual-result-row:hover{background:#f0fdf4;}
+        .manual-result-row select{padding:0.3rem;border-radius:0.5rem;border:1px solid #ccc;}
+    </style>
+</head>
+<body>
+
+<div class="header" id="mainHeader">
+    <h1>🏆 VM-TIPS 2026 🏆</h1>
+</div>
+
+<div class="admin-login-popup" id="adminLoginPopup" style="display: none;">
+    <div style="display:flex; gap:0.5rem;">
+        <input type="password" id="adminPassword" placeholder="Admin lösenord" style="padding:0.5rem; border-radius:0.5rem; border:1px solid #ccc;">
+        <button id="loginBtn" class="btn btn-primary">Logga in</button>
+    </div>
+</div>
+
+<div class="manual-result-popup" id="manualResultPopup">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 style="color:#1a4d3e;">✏️ تحديث النتائج يدوياً</h3>
+        <button id="closeManualPopup" class="btn btn-warning" style="padding:0.2rem 0.8rem;">✖</button>
+    </div>
+    <div id="manualResultsList"></div>
+    <button id="saveManualResults" class="btn btn-success" style="width:100%; margin-top:1rem;">💾 حفظ النتائج</button>
+</div>
+
+<div class="container">
+    <div class="admin-bar" id="adminBar">
+        <span class="btn btn-warning" style="cursor:default;">👑 Admin</span>
+        <button id="addPlayerBtn" class="btn btn-primary">➕ Lägg till spelare</button>
+        <button id="removePlayerBtn" class="btn btn-remove">🔻 Ta bort vald spelare</button>
+        <button id="lockTournamentBtn" class="btn btn-danger">🔒 Lås tävlingen</button>
+        <button id="exportPageBtn" class="btn btn-export">📦 Exportera komplett sida</button>
+        <button id="manualUpdateBtn" class="btn btn-refresh">🔄 تحديث يدوي</button>
+        <button id="logoutButton" class="btn btn-warning" style="margin-left:auto;">🚪 Logga ut</button>
+    </div>
+
+    <div class="player-bar">
+        <span style="font-weight:bold;">👤 Välj spelare:</span>
+        <select id="publicPlayerSelector"><option value="">-- Välj spelare --</option><option value="Ammar Hammoud">Ammar Hammoud</option><option value="Mattias Svensson">Mattias Svensson</option><option value="Mikael Bengtsson">Mikael Bengtsson</option><option value="Rickard Dahlberg">Rickard Dahlberg</option><option value="Niklas Hägg">Niklas Hägg</option><option value="Henric Johansson">Henric Johansson</option><option value="Jörgen Bloom">Jörgen Bloom</option><option value="Linus Persson">Linus Persson</option><option value="Ola Elofsson">Ola Elofsson</option><option value="Ulrika Johannesson">Ulrika Johannesson</option><option value="Wilhelm Kihlman">Wilhelm Kihlman</option><option value="Love Grahn">Love Grahn</option><option value="Eric Linder">Eric Linder</option></select>
+        <span id="selectedPlayerInfo" style="font-size:0.8rem; color:#666;"></span>
+        <div class="live-indicator" style="margin-left:auto;"><span class="live-dot"></span><span>Live</span></div>
+        <div id="updateStatus" class="update-status">🟢 جاهز</div>
+    </div>
+
+    <div class="import-bar" id="importBar">
+        <div class="file-input-wrapper"><button class="btn btn-primary">📁 Välj Excel-fil</button><input type="file" id="multiImport" accept=".xlsx,.xls"></div>
+        <span style="font-size:0.8rem; color:#666;">Välj spelare:</span>
+        <select id="importPlayerSelect" style="padding:0.3rem 0.8rem; border-radius:2rem; border:1px solid #ccc;"><option value="">-- Välj spelare --</option><option value="Ammar Hammoud">Ammar Hammoud</option><option value="Mattias Svensson">Mattias Svensson</option><option value="Mikael Bengtsson">Mikael Bengtsson</option><option value="Rickard Dahlberg">Rickard Dahlberg</option><option value="Niklas Hägg">Niklas Hägg</option><option value="Henric Johansson">Henric Johansson</option><option value="Jörgen Bloom">Jörgen Bloom</option><option value="Linus Persson">Linus Persson</option><option value="Ola Elofsson">Ola Elofsson</option><option value="Ulrika Johannesson">Ulrika Johannesson</option><option value="Wilhelm Kihlman">Wilhelm Kihlman</option><option value="Love Grahn">Love Grahn</option><option value="Eric Linder">Eric Linder</option></select>
+        <button id="importFilesBtn" class="btn btn-success">📥 Importera</button>
+        <span id="selectedFilesCount" style="font-size:0.7rem;">Ingen fil vald</span>
+    </div>
+    <div id="importStatusContainer"></div>
+
+    <div class="main-layout">
+        <div class="left-sidebar">
+            <div class="sidebar-card"><div class="sidebar-title">📋 Deltagare</div><div id="playersListSidebar"><div class="player-list-item " data-name="Jörgen Bloom"><span>Jörgen Bloom</span><span>3 p</span></div><div class="player-list-item " data-name="Linus Persson"><span>Linus Persson</span><span>3 p</span></div><div class="player-list-item " data-name="Ulrika Johannesson"><span>Ulrika Johannesson</span><span>3 p</span></div><div class="player-list-item " data-name="Wilhelm Kihlman"><span>Wilhelm Kihlman</span><span>3 p</span></div><div class="player-list-item " data-name="Mattias Svensson"><span>Mattias Svensson</span><span>2 p</span></div><div class="player-list-item " data-name="Mikael Bengtsson"><span>Mikael Bengtsson</span><span>2 p</span></div><div class="player-list-item " data-name="Rickard Dahlberg"><span>Rickard Dahlberg</span><span>2 p</span></div><div class="player-list-item " data-name="Niklas Hägg"><span>Niklas Hägg</span><span>2 p</span></div><div class="player-list-item " data-name="Henric Johansson"><span>Henric Johansson</span><span>2 p</span></div><div class="player-list-item " data-name="Ola Elofsson"><span>Ola Elofsson</span><span>2 p</span></div><div class="player-list-item " data-name="Ammar Hammoud"><span>Ammar Hammoud</span><span>1 p</span></div><div class="player-list-item " data-name="Love Grahn"><span>Love Grahn</span><span>1 p</span></div><div class="player-list-item " data-name="Eric Linder"><span>Eric Linder</span><span>1 p</span></div></div></div>
+            <div class="sidebar-card"><div class="sidebar-title">🏆 Topp 5</div><div id="topPlayersList"><div class="top-player-item"><span>1. Jörgen Bloom</span><span>3 p</span></div><div class="top-player-item"><span>2. Linus Persson</span><span>3 p</span></div><div class="top-player-item"><span>3. Ulrika Johannesson</span><span>3 p</span></div><div class="top-player-item"><span>4. Wilhelm Kihlman</span><span>3 p</span></div><div class="top-player-item"><span>5. Mattias Svensson</span><span>2 p</span></div></div></div>
+        </div>
+        <div class="content-area">
+            <div class="total-goals-section"><div class="total-goals-value" id="totalGoalsValue">-</div><div>🎯 Totalt antal mål</div></div>
+            <div class="matches-container" id="allMatchesContainer"><table class="match-table"><thead><tr><th>#</th><th>Datum</th><th>Tid</th><th>Grupp</th><th>Lag 1</th><th></th><th>Lag 2</th><th>Tips</th><th>Status</th></tr></thead><tbody><tr><td style="text-align:center;">1</td><td style="white-space:nowrap;">Torsdag 11 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">A</td><td>Mexico</td><td style="text-align:center;">vs</td><td>South Africa</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-played">✅ 1</span></td></tr><tr><td style="text-align:center;">2</td><td style="white-space:nowrap;">Fredag 12 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">A</td><td>South Korea</td><td style="text-align:center;">vs</td><td>Czech Republic</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-played">✅ 1</span></td></tr><tr><td style="text-align:center;">3</td><td style="white-space:nowrap;">Fredag 12 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">B</td><td>Canada</td><td style="text-align:center;">vs</td><td>Bosnia and Herzegovina</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-played">✅ X</span></td></tr><tr><td style="text-align:center;">4</td><td style="white-space:nowrap;">Lördag 13 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">D</td><td>USA</td><td style="text-align:center;">vs</td><td>Paraguay</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-played">✅ 1</span></td></tr><tr><td style="text-align:center;">5</td><td style="white-space:nowrap;">Lördag 13 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">B</td><td>Qatar</td><td style="text-align:center;">vs</td><td>Switzerland</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">6</td><td style="white-space:nowrap;">Söndag 14 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">C</td><td>Brazil</td><td style="text-align:center;">vs</td><td>Morocco</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">7</td><td style="white-space:nowrap;">Söndag 14 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">C</td><td>Haiti</td><td style="text-align:center;">vs</td><td>Scotland</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">8</td><td style="white-space:nowrap;">Söndag 14 juni</td><td style="white-space:nowrap;">06:00</td><td style="text-align:center;">D</td><td>Australia</td><td style="text-align:center;">vs</td><td>Turkey</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">9</td><td style="white-space:nowrap;">Söndag 14 juni</td><td style="white-space:nowrap;">19:00</td><td style="text-align:center;">E</td><td>Germany</td><td style="text-align:center;">vs</td><td>Curacao</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">10</td><td style="white-space:nowrap;">Söndag 14 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">F</td><td>Netherlands</td><td style="text-align:center;">vs</td><td>Japan</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">11</td><td style="white-space:nowrap;">Måndag 15 juni</td><td style="white-space:nowrap;">01:00</td><td style="text-align:center;">E</td><td>Ivory Coast</td><td style="text-align:center;">vs</td><td>Ecuador</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">12</td><td style="white-space:nowrap;">Måndag 15 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">F</td><td>Sweden</td><td style="text-align:center;">vs</td><td>Tunisia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">13</td><td style="white-space:nowrap;">Måndag 15 juni</td><td style="white-space:nowrap;">18:00</td><td style="text-align:center;">H</td><td>Spain</td><td style="text-align:center;">vs</td><td>Cape Verde</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">14</td><td style="white-space:nowrap;">Måndag 15 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">G</td><td>Belgium</td><td style="text-align:center;">vs</td><td>Egypt</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">15</td><td style="white-space:nowrap;">Tisdag 16 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">H</td><td>Saudi Arabia</td><td style="text-align:center;">vs</td><td>Uruguay</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">16</td><td style="white-space:nowrap;">Tisdag 16 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">G</td><td>Iran</td><td style="text-align:center;">vs</td><td>New Zealand</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">17</td><td style="white-space:nowrap;">Tisdag 16 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">I</td><td>France</td><td style="text-align:center;">vs</td><td>Senegal</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">18</td><td style="white-space:nowrap;">Onsdag 17 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">I</td><td>Iraq</td><td style="text-align:center;">vs</td><td>Norway</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">19</td><td style="white-space:nowrap;">Onsdag 17 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">J</td><td>Argentina</td><td style="text-align:center;">vs</td><td>Algeria</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">20</td><td style="white-space:nowrap;">Onsdag 17 juni</td><td style="white-space:nowrap;">06:00</td><td style="text-align:center;">J</td><td>Austria</td><td style="text-align:center;">vs</td><td>Jordan</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">21</td><td style="white-space:nowrap;">Onsdag 17 juni</td><td style="white-space:nowrap;">19:00</td><td style="text-align:center;">K</td><td>Portugal</td><td style="text-align:center;">vs</td><td>DR Congo</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">22</td><td style="white-space:nowrap;">Onsdag 17 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">L</td><td>England</td><td style="text-align:center;">vs</td><td>Croatia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">23</td><td style="white-space:nowrap;">Torsdag 18 juni</td><td style="white-space:nowrap;">01:00</td><td style="text-align:center;">L</td><td>Ghana</td><td style="text-align:center;">vs</td><td>Panama</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">24</td><td style="white-space:nowrap;">Torsdag 18 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">K</td><td>Uzbekistan</td><td style="text-align:center;">vs</td><td>Colombia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">25</td><td style="white-space:nowrap;">Torsdag 18 juni</td><td style="white-space:nowrap;">18:00</td><td style="text-align:center;">A</td><td>South Africa</td><td style="text-align:center;">vs</td><td>Czech Republic</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">26</td><td style="white-space:nowrap;">Torsdag 18 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">B</td><td>Bosnia and Herzegovina</td><td style="text-align:center;">vs</td><td>Switzerland</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">27</td><td style="white-space:nowrap;">Fredag 19 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">B</td><td>Canada</td><td style="text-align:center;">vs</td><td>Qatar</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">28</td><td style="white-space:nowrap;">Fredag 19 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">A</td><td>Mexico</td><td style="text-align:center;">vs</td><td>South Korea</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">29</td><td style="white-space:nowrap;">Fredag 19 juni</td><td style="white-space:nowrap;">20:00</td><td style="text-align:center;">D</td><td>USA</td><td style="text-align:center;">vs</td><td>Australia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">30</td><td style="white-space:nowrap;">Lördag 20 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">C</td><td>Scotland</td><td style="text-align:center;">vs</td><td>Morocco</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">31</td><td style="white-space:nowrap;">Lördag 20 juni</td><td style="white-space:nowrap;">02:30</td><td style="text-align:center;">C</td><td>Brazil</td><td style="text-align:center;">vs</td><td>Haiti</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">32</td><td style="white-space:nowrap;">Lördag 20 juni</td><td style="white-space:nowrap;">05:00</td><td style="text-align:center;">D</td><td>Turkey</td><td style="text-align:center;">vs</td><td>Paraguay</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">33</td><td style="white-space:nowrap;">Lördag 20 juni</td><td style="white-space:nowrap;">19:00</td><td style="text-align:center;">F</td><td>Netherlands</td><td style="text-align:center;">vs</td><td>Sweden</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">34</td><td style="white-space:nowrap;">Lördag 20 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">E</td><td>Germany</td><td style="text-align:center;">vs</td><td>Ivory Coast</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">35</td><td style="white-space:nowrap;">Söndag 21 juni</td><td style="white-space:nowrap;">02:00</td><td style="text-align:center;">E</td><td>Ecuador</td><td style="text-align:center;">vs</td><td>Curacao</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">36</td><td style="white-space:nowrap;">Söndag 21 juni</td><td style="white-space:nowrap;">06:00</td><td style="text-align:center;">F</td><td>Tunisia</td><td style="text-align:center;">vs</td><td>Japan</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">37</td><td style="white-space:nowrap;">Söndag 21 juni</td><td style="white-space:nowrap;">18:00</td><td style="text-align:center;">H</td><td>Spain</td><td style="text-align:center;">vs</td><td>Saudi Arabia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">38</td><td style="white-space:nowrap;">Söndag 21 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">G</td><td>Belgium</td><td style="text-align:center;">vs</td><td>Iran</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">39</td><td style="white-space:nowrap;">Måndag 22 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">H</td><td>Uruguay</td><td style="text-align:center;">vs</td><td>Cape Verde</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">40</td><td style="white-space:nowrap;">Måndag 22 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">G</td><td>New Zealand</td><td style="text-align:center;">vs</td><td>Egypt</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">41</td><td style="white-space:nowrap;">Måndag 22 juni</td><td style="white-space:nowrap;">19:00</td><td style="text-align:center;">J</td><td>Argentina</td><td style="text-align:center;">vs</td><td>Austria</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">42</td><td style="white-space:nowrap;">Måndag 22 juni</td><td style="white-space:nowrap;">23:00</td><td style="text-align:center;">I</td><td>France</td><td style="text-align:center;">vs</td><td>Iraq</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">43</td><td style="white-space:nowrap;">Tisdag 23 juni</td><td style="white-space:nowrap;">02:00</td><td style="text-align:center;">I</td><td>Norway</td><td style="text-align:center;">vs</td><td>Senegal</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">44</td><td style="white-space:nowrap;">Tisdag 23 juni</td><td style="white-space:nowrap;">05:00</td><td style="text-align:center;">J</td><td>Jordan</td><td style="text-align:center;">vs</td><td>Algeria</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">45</td><td style="white-space:nowrap;">Tisdag 23 juni</td><td style="white-space:nowrap;">19:00</td><td style="text-align:center;">K</td><td>Portugal</td><td style="text-align:center;">vs</td><td>Uzbekistan</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">46</td><td style="white-space:nowrap;">Tisdag 23 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">L</td><td>England</td><td style="text-align:center;">vs</td><td>Ghana</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">47</td><td style="white-space:nowrap;">Onsdag 24 juni</td><td style="white-space:nowrap;">01:00</td><td style="text-align:center;">L</td><td>Panama</td><td style="text-align:center;">vs</td><td>Croatia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">48</td><td style="white-space:nowrap;">Onsdag 24 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">K</td><td>Colombia</td><td style="text-align:center;">vs</td><td>DR Congo</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">49</td><td style="white-space:nowrap;">Onsdag 24 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">B</td><td>Switzerland</td><td style="text-align:center;">vs</td><td>Canada</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">50</td><td style="white-space:nowrap;">Onsdag 24 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">B</td><td>Bosnia and Herzegovina</td><td style="text-align:center;">vs</td><td>Qatar</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">51</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">C</td><td>Morocco</td><td style="text-align:center;">vs</td><td>Haiti</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">52</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">00:00</td><td style="text-align:center;">C</td><td>Scotland</td><td style="text-align:center;">vs</td><td>Brazil</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">53</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">A</td><td>South Africa</td><td style="text-align:center;">vs</td><td>South Korea</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">54</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">03:00</td><td style="text-align:center;">A</td><td>Czech Republic</td><td style="text-align:center;">vs</td><td>Mexico</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">55</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">E</td><td>Curacao</td><td style="text-align:center;">vs</td><td>Ivory Coast</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">56</td><td style="white-space:nowrap;">Torsdag 25 juni</td><td style="white-space:nowrap;">22:00</td><td style="text-align:center;">E</td><td>Ecuador</td><td style="text-align:center;">vs</td><td>Germany</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">57</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">01:00</td><td style="text-align:center;">F</td><td>Tunisia</td><td style="text-align:center;">vs</td><td>Netherlands</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">58</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">01:00</td><td style="text-align:center;">F</td><td>Japan</td><td style="text-align:center;">vs</td><td>Sweden</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">59</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">D</td><td>Turkey</td><td style="text-align:center;">vs</td><td>USA</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">60</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">D</td><td>Paraguay</td><td style="text-align:center;">vs</td><td>Australia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">61</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">I</td><td>Norway</td><td style="text-align:center;">vs</td><td>France</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">62</td><td style="white-space:nowrap;">Fredag 26 juni</td><td style="white-space:nowrap;">21:00</td><td style="text-align:center;">I</td><td>Senegal</td><td style="text-align:center;">vs</td><td>Iraq</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">63</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">02:00</td><td style="text-align:center;">H</td><td>Cape Verde</td><td style="text-align:center;">vs</td><td>Saudi Arabia</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">64</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">02:00</td><td style="text-align:center;">H</td><td>Uruguay</td><td style="text-align:center;">vs</td><td>Spain</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">65</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">05:00</td><td style="text-align:center;">G</td><td>New Zealand</td><td style="text-align:center;">vs</td><td>Belgium</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">66</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">05:00</td><td style="text-align:center;">G</td><td>Egypt</td><td style="text-align:center;">vs</td><td>Iran</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">67</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">23:00</td><td style="text-align:center;">L</td><td>Panama</td><td style="text-align:center;">vs</td><td>England</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">68</td><td style="white-space:nowrap;">Lördag 27 juni</td><td style="white-space:nowrap;">23:00</td><td style="text-align:center;">L</td><td>Croatia</td><td style="text-align:center;">vs</td><td>Ghana</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">69</td><td style="white-space:nowrap;">Söndag 28 juni</td><td style="white-space:nowrap;">01:30</td><td style="text-align:center;">K</td><td>DR Congo</td><td style="text-align:center;">vs</td><td>Uzbekistan</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">70</td><td style="white-space:nowrap;">Söndag 28 juni</td><td style="white-space:nowrap;">01:30</td><td style="text-align:center;">K</td><td>Colombia</td><td style="text-align:center;">vs</td><td>Portugal</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">71</td><td style="white-space:nowrap;">Söndag 28 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">J</td><td>Algeria</td><td style="text-align:center;">vs</td><td>Austria</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr><tr><td style="text-align:center;">72</td><td style="white-space:nowrap;">Söndag 28 juni</td><td style="white-space:nowrap;">04:00</td><td style="text-align:center;">J</td><td>Jordan</td><td style="text-align:center;">vs</td><td>Argentina</td><td class="no-tips" style="text-align:center;">-</td><td><span class="status-upcoming">⏳ Kommande</span></td></tr></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ADMIN_PASSWORD = "Admin2026";
+let isLoggedIn = false;
+let isLocked = false;
+let allPlayers = {};
+let currentViewPlayer = null;
+let actualResults = {};
+
+const allMatches = [];
+const firstRoundMatches = [
+    ["Torsdag 11 juni","21:00","A","Mexico","South Africa"],
+    ["Fredag 12 juni","04:00","A","South Korea","Czech Republic"],
+    ["Fredag 12 juni","21:00","B","Canada","Bosnia and Herzegovina"],
+    ["Lördag 13 juni","03:00","D","USA","Paraguay"],
+    ["Lördag 13 juni","21:00","B","Qatar","Switzerland"],
+    ["Söndag 14 juni","00:00","C","Brazil","Morocco"],
+    ["Söndag 14 juni","03:00","C","Haiti","Scotland"],
+    ["Söndag 14 juni","06:00","D","Australia","Turkey"],
+    ["Söndag 14 juni","19:00","E","Germany","Curacao"],
+    ["Söndag 14 juni","22:00","F","Netherlands","Japan"],
+    ["Måndag 15 juni","01:00","E","Ivory Coast","Ecuador"],
+    ["Måndag 15 juni","04:00","F","Sweden","Tunisia"],
+    ["Måndag 15 juni","18:00","H","Spain","Cape Verde"],
+    ["Måndag 15 juni","21:00","G","Belgium","Egypt"],
+    ["Tisdag 16 juni","00:00","H","Saudi Arabia","Uruguay"],
+    ["Tisdag 16 juni","03:00","G","Iran","New Zealand"],
+    ["Tisdag 16 juni","21:00","I","France","Senegal"],
+    ["Onsdag 17 juni","00:00","I","Iraq","Norway"],
+    ["Onsdag 17 juni","03:00","J","Argentina","Algeria"],
+    ["Onsdag 17 juni","06:00","J","Austria","Jordan"],
+    ["Onsdag 17 juni","19:00","K","Portugal","DR Congo"],
+    ["Onsdag 17 juni","22:00","L","England","Croatia"],
+    ["Torsdag 18 juni","01:00","L","Ghana","Panama"],
+    ["Torsdag 18 juni","04:00","K","Uzbekistan","Colombia"]
+];
+const secondRoundMatches = [
+    ["Torsdag 18 juni","18:00","A","South Africa","Czech Republic"],
+    ["Torsdag 18 juni","21:00","B","Bosnia and Herzegovina","Switzerland"],
+    ["Fredag 19 juni","00:00","B","Canada","Qatar"],
+    ["Fredag 19 juni","03:00","A","Mexico","South Korea"],
+    ["Fredag 19 juni","20:00","D","USA","Australia"],
+    ["Lördag 20 juni","00:00","C","Scotland","Morocco"],
+    ["Lördag 20 juni","02:30","C","Brazil","Haiti"],
+    ["Lördag 20 juni","05:00","D","Turkey","Paraguay"],
+    ["Lördag 20 juni","19:00","F","Netherlands","Sweden"],
+    ["Lördag 20 juni","22:00","E","Germany","Ivory Coast"],
+    ["Söndag 21 juni","02:00","E","Ecuador","Curacao"],
+    ["Söndag 21 juni","06:00","F","Tunisia","Japan"],
+    ["Söndag 21 juni","18:00","H","Spain","Saudi Arabia"],
+    ["Söndag 21 juni","21:00","G","Belgium","Iran"],
+    ["Måndag 22 juni","00:00","H","Uruguay","Cape Verde"],
+    ["Måndag 22 juni","03:00","G","New Zealand","Egypt"],
+    ["Måndag 22 juni","19:00","J","Argentina","Austria"],
+    ["Måndag 22 juni","23:00","I","France","Iraq"],
+    ["Tisdag 23 juni","02:00","I","Norway","Senegal"],
+    ["Tisdag 23 juni","05:00","J","Jordan","Algeria"],
+    ["Tisdag 23 juni","19:00","K","Portugal","Uzbekistan"],
+    ["Tisdag 23 juni","22:00","L","England","Ghana"],
+    ["Onsdag 24 juni","01:00","L","Panama","Croatia"],
+    ["Onsdag 24 juni","04:00","K","Colombia","DR Congo"]
+];
+const thirdRoundMatches = [
+    ["Onsdag 24 juni","21:00","B","Switzerland","Canada"],
+    ["Onsdag 24 juni","21:00","B","Bosnia and Herzegovina","Qatar"],
+    ["Torsdag 25 juni","00:00","C","Morocco","Haiti"],
+    ["Torsdag 25 juni","00:00","C","Scotland","Brazil"],
+    ["Torsdag 25 juni","03:00","A","South Africa","South Korea"],
+    ["Torsdag 25 juni","03:00","A","Czech Republic","Mexico"],
+    ["Torsdag 25 juni","22:00","E","Curacao","Ivory Coast"],
+    ["Torsdag 25 juni","22:00","E","Ecuador","Germany"],
+    ["Fredag 26 juni","01:00","F","Tunisia","Netherlands"],
+    ["Fredag 26 juni","01:00","F","Japan","Sweden"],
+    ["Fredag 26 juni","04:00","D","Turkey","USA"],
+    ["Fredag 26 juni","04:00","D","Paraguay","Australia"],
+    ["Fredag 26 juni","21:00","I","Norway","France"],
+    ["Fredag 26 juni","21:00","I","Senegal","Iraq"],
+    ["Lördag 27 juni","02:00","H","Cape Verde","Saudi Arabia"],
+    ["Lördag 27 juni","02:00","H","Uruguay","Spain"],
+    ["Lördag 27 juni","05:00","G","New Zealand","Belgium"],
+    ["Lördag 27 juni","05:00","G","Egypt","Iran"],
+    ["Lördag 27 juni","23:00","L","Panama","England"],
+    ["Lördag 27 juni","23:00","L","Croatia","Ghana"],
+    ["Söndag 28 juni","01:30","K","DR Congo","Uzbekistan"],
+    ["Söndag 28 juni","01:30","K","Colombia","Portugal"],
+    ["Söndag 28 juni","04:00","J","Algeria","Austria"],
+    ["Söndag 28 juni","04:00","J","Jordan","Argentina"]
+];
+
+function addMatches(matchesArray){
+    matchesArray.forEach(match=>{
+        allMatches.push({id:allMatches.length,matchNumber:allMatches.length+1,datum:match[0],time:match[1],group:match[2],lag1:match[3],lag2:match[4]});
+    });
+}
+addMatches(firstRoundMatches);
+addMatches(secondRoundMatches);
+addMatches(thirdRoundMatches);
+
+for(let i=0;i<72;i++) actualResults[i]=null;
+
+function saveData(){
+    localStorage.setItem("vm_data",JSON.stringify({players:allPlayers,locked:isLocked,results:actualResults}));
+}
+function loadData(){
+    const saved=localStorage.getItem("vm_data");
+    if(saved){
+        const data=JSON.parse(saved);
+        allPlayers=data.players||{};
+        isLocked=data.locked||false;
+        if(data.results) actualResults=data.results;
+    }
+    updateUI();
+}
+function calculatePoints(playerData){
+    let total=0;
+    const tips=playerData.tips||{};
+    allMatches.forEach((m,idx)=>{
+        const tip=tips[`match_${idx}`]||"";
+        const actual=actualResults[idx];
+        if(actual && tip.toLowerCase()===actual.toLowerCase()) total++;
+    });
+    return total;
+}
+function getTipClass(tip,matchId){
+    const actual=actualResults[matchId];
+    if(!actual) return 'tip-pending';
+    return tip.toLowerCase()===actual.toLowerCase()?'tip-correct':'tip-wrong';
+}
+function updateUI(){
+    const selector=document.getElementById("publicPlayerSelector");
+    const players=Object.keys(allPlayers);
+    selector.innerHTML='<option value="">-- Välj spelare --</option>'+players.map(p=>`<option value="${p}" ${currentViewPlayer===p?'selected':''}>${p}</option>`).join('');
+    
+    const importSelect=document.getElementById("importPlayerSelect");
+    importSelect.innerHTML='<option value="">-- Välj spelare --</option>'+players.map(p=>`<option value="${p}">${p}</option>`).join('');
+    
+    const sidebar=document.getElementById("playersListSidebar");
+    const points=players.map(p=>({name:p,points:calculatePoints(allPlayers[p])})).sort((a,b)=>b.points-a.points);
+    sidebar.innerHTML=points.map(p=>`<div class="player-list-item ${currentViewPlayer===p.name?'active':''}" data-name="${p.name}"><span>${p.name}</span><span>${p.points} p</span></div>`).join('');
+    document.querySelectorAll("#playersListSidebar .player-list-item").forEach(item=>{item.onclick=()=>{currentViewPlayer=item.dataset.name;updateUI();};});
+    
+    const top5=document.getElementById("topPlayersList");
+    top5.innerHTML=points.slice(0,5).map((p,idx)=>`<div class="top-player-item"><span>${idx+1}. ${p.name}</span><span>${p.points} p</span></div>`).join('');
+    
+    const totalGoals=document.getElementById("totalGoalsValue");
+    if(currentViewPlayer && allPlayers[currentViewPlayer]?.totalGoals){
+        totalGoals.textContent=allPlayers[currentViewPlayer].totalGoals;
+        document.getElementById("selectedPlayerInfo").textContent=`${currentViewPlayer} - ${calculatePoints(allPlayers[currentViewPlayer])} p`;
+    }else{
+        totalGoals.textContent="-";
+        document.getElementById("selectedPlayerInfo").textContent="";
+    }
+    
+    const container=document.getElementById("allMatchesContainer");
+    const playerData=currentViewPlayer?allPlayers[currentViewPlayer]:null;
+    let html='<table class="match-table"><thead><tr><th>#</th><th>Datum</th><th>Tid</th><th>Grupp</th><th>Lag 1</th><th></th><th>Lag 2</th><th>Tips</th><th>Status</th></tr></thead><tbody>';
+    allMatches.forEach(m=>{
+        const tip=playerData?.tips?.[`match_${m.id}`]||"";
+        const tipClass=tip?getTipClass(tip,m.id):'no-tips';
+        const status=actualResults[m.id]?`<span class="status-played">✅ ${actualResults[m.id].toUpperCase()}</span>`:'<span class="status-upcoming">⏳ Kommande</span>';
+        html+=`<tr><td style="text-align:center;">${m.matchNumber}</td><td style="white-space:nowrap;">${m.datum}</td><td style="white-space:nowrap;">${m.time}</td><td style="text-align:center;">${m.group}</td><td>${m.lag1}</td><td style="text-align:center;">vs</td><td>${m.lag2}</td><td class="${tipClass}" style="text-align:center;">${tip?tip.toUpperCase():'-'}</td><td>${status}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    container.innerHTML=html;
+}
+
+function openManualUpdatePopup(){
+    const popup=document.getElementById("manualResultPopup");
+    const listContainer=document.getElementById("manualResultsList");
+    let html='';
+    for(let i=0;i<allMatches.length;i++){
+        const match=allMatches[i];
+        const currentResult=actualResults[i]||'';
+        html+=`<div class="manual-result-row"><span style="flex:1;">${match.matchNumber}. ${match.lag1} vs ${match.lag2}</span><select id="manual_result_${i}"><option value="" ${currentResult===''?'selected':''}>- (لم تحدد بعد)</option><option value="1" ${currentResult==='1'?'selected':''}>1 (${match.lag1})</option><option value="X" ${currentResult==='X'?'selected':''}>X (Oavgjort)</option><option value="2" ${currentResult==='2'?'selected':''}>2 (${match.lag2})</option></select></div>`;
+    }
+    listContainer.innerHTML=html;
+    popup.classList.add("active");
+}
+
+function saveManualResults(){
+    let hasChanges=false;
+    for(let i=0;i<allMatches.length;i++){
+        const select=document.getElementById(`manual_result_${i}`);
+        if(select){
+            const newResult=select.value;
+            if(actualResults[i]!==newResult){
+                actualResults[i]=newResult===""?null:newResult;
+                hasChanges=true;
+            }
+        }
+    }
+    if(hasChanges){
+        saveData();
+        updateUI();
+        document.getElementById("updateStatus").innerHTML="✅ تم التحديث!";
+        document.getElementById("updateStatus").className="update-status success";
+        setTimeout(()=>{
+            document.getElementById("updateStatus").innerHTML="🟢 جاهز";
+            document.getElementById("updateStatus").className="update-status";
+        },3000);
+        alert("✅ النتائج تم حفظها بنجاح!");
+    }else{
+        alert("ℹ️ لا توجد تغييرات جديدة");
+    }
+    document.getElementById("manualResultPopup").classList.remove("active");
+}
+
+function manualUpdate(){openManualUpdatePopup();}
+
+function exportCompletePage(){
+    isLoggedIn=false;
+    document.getElementById("adminBar").classList.remove("active");
+    document.getElementById("importBar").classList.remove("active");
+    updateUI();
+    setTimeout(()=>{
+        const htmlContent=document.documentElement.outerHTML;
+        const blob=new Blob([htmlContent],{type:'text/html'});
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);
+        a.download=`VM_tips_public_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.html`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        alert("✅ تم تسجيل الخروج وتصدير الصفحة!");
+    },100);
+}
+
+function login(){
+    if(document.getElementById("adminPassword").value===ADMIN_PASSWORD){
+        isLoggedIn=true;
+        document.getElementById("adminBar").classList.add("active");
+        document.getElementById("importBar").classList.add("active");
+        document.getElementById("adminLoginPopup").style.display="none";
+        updateUI();
+        alert("✅ Inloggad som admin!");
+    }else alert("❌ Fel lösenord!");
+}
+function logout(){
+    isLoggedIn=false;
+    document.getElementById("adminBar").classList.remove("active");
+    document.getElementById("importBar").classList.remove("active");
+    updateUI();
+    alert("✅ Utloggad!");
+}
+function addNewPlayer(){
+    const name=prompt("Ange spelarens namn:");
+    if(name && !allPlayers[name]){
+        allPlayers[name]={tips:{},totalGoals:null};
+        saveData();
+        updateUI();
+        alert(`✅ Spelaren "${name}" har lagts till!`);
+    }else if(name) alert("❌ Finns redan!");
+}
+function removeSelectedPlayer(){
+    if(!currentViewPlayer){
+        alert("❌ Ingen spelare är vald! Välj en spelare från listan först.");
+        return;
+    }
+    if(confirm(`Är du säker på att du vill ta bort spelaren "${currentViewPlayer}"?`)){
+        delete allPlayers[currentViewPlayer];
+        currentViewPlayer=null;
+        saveData();
+        updateUI();
+        alert("✅ Spelaren har tagits bort.");
+    }
+}
+async function importExcelFile(){
+    const player=document.getElementById("importPlayerSelect").value;
+    const file=document.getElementById("multiImport").files[0];
+    if(!player){alert("Välj spelare");return;}
+    if(!file){alert("Välj fil");return;}
+    const reader=new FileReader();
+    reader.onload=function(e){
+        const workbook=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const sheet=workbook.Sheets[workbook.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+        let tips={},totalGoals=null;
+        if(rows[2] && rows[2][5]) totalGoals=parseInt(rows[2][5]);
+        let startRow=-1;
+        for(let i=0;i<rows.length;i++) if(rows[i][0]===1 || rows[i][0]==="1"){startRow=i;break;}
+        if(startRow===-1){alert("Kunde inte hitta matchdata");return;}
+        for(let i=startRow;i<startRow+72;i++){
+            const row=rows[i];
+            if(!row) continue;
+            const matchNum=parseInt(row[0]);
+            if(isNaN(matchNum) || matchNum<1 || matchNum>72) continue;
+            let tip=row[5]?row[5].toString().toLowerCase():"";
+            if(tip.match(/^[1x2]$/)) tips[`match_${matchNum-1}`]=tip;
+        }
+        if(!allPlayers[player]) allPlayers[player]={tips:{},totalGoals:null};
+        allPlayers[player].tips=tips;
+        if(totalGoals) allPlayers[player].totalGoals=totalGoals;
+        saveData();
+        updateUI();
+        alert(`Importerat ${Object.keys(tips).length} tips för ${player}`);
+    };
+    reader.readAsArrayBuffer(file);
+    document.getElementById("multiImport").value="";
+    document.getElementById("selectedFilesCount").textContent="Ingen fil vald";
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+    loadData();
+    let timer=null;
+    document.getElementById("mainHeader").onclick=()=>{
+        const popup=document.getElementById("adminLoginPopup");
+        if(popup.style.display==="block"){popup.style.display="none";clearTimeout(timer);}
+        else{popup.style.display="block";timer=setTimeout(()=>popup.style.display="none",30000);}
+    };
+    document.getElementById("loginBtn").onclick=login;
+    document.getElementById("logoutButton").onclick=logout;
+    document.getElementById("addPlayerBtn").onclick=addNewPlayer;
+    document.getElementById("removePlayerBtn").onclick=removeSelectedPlayer;
+    document.getElementById("exportPageBtn").onclick=exportCompletePage;
+    document.getElementById("manualUpdateBtn").onclick=manualUpdate;
+    document.getElementById("closeManualPopup").onclick=()=>{document.getElementById("manualResultPopup").classList.remove("active");};
+    document.getElementById("saveManualResults").onclick=saveManualResults;
+    document.getElementById("lockTournamentBtn").onclick=()=>{if(confirm("Lås tävlingen?")){isLocked=true;saveData();alert("Låst!");}};
+    document.getElementById("multiImport").onchange=(e)=>{const c=e.target.files.length;document.getElementById("selectedFilesCount").textContent=c===0?"Ingen fil vald":(c===1?"1 fil vald":`${c} filer valda`);};
+    document.getElementById("importFilesBtn").onclick=importExcelFile;
+    document.getElementById("publicPlayerSelector").onchange=(e)=>{currentViewPlayer=e.target.value||null;updateUI();};
+});
+</script>
+
+</body></html>
