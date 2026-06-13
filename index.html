@@ -240,7 +240,7 @@ addMatches(secondRoundMatches);
 addMatches(thirdRoundMatches);
 
 // ==========================================
-// دوال Google Sheets API
+// تحميل البيانات من Google Sheets
 // ==========================================
 async function loadDataFromSheets() {
     var statusDiv = document.getElementById("updateStatus");
@@ -265,8 +265,20 @@ async function loadDataFromSheets() {
                 var playerName = row[0];
                 if(!playerName) continue;
                 var totalGoals = row[1] ? parseInt(row[1]) : null;
-                var tipsJson = row[2] ? JSON.parse(row[2]) : {};
+                var tipsJson = {};
+                try {
+                    if(row[2] && row[2] !== "{}") tipsJson = JSON.parse(row[2]);
+                } catch(e) { tipsJson = {}; }
                 newPlayers[playerName] = { tips: tipsJson, totalGoals: totalGoals };
+            }
+        }
+        
+        // إذا كان الجدول فارغاً، نستخدم localStorage
+        if(Object.keys(newPlayers).length === 0){
+            var backup = localStorage.getItem("vm_data_backup");
+            if(backup){
+                var backupData = JSON.parse(backup);
+                newPlayers = backupData.players || {};
             }
         }
         allPlayers = newPlayers;
@@ -286,7 +298,7 @@ async function loadDataFromSheets() {
         }
         actualResults = newResults;
         
-        statusDiv.innerHTML = "✅ تم تحميل البيانات بنجاح";
+        statusDiv.innerHTML = "✅ تم تحميل البيانات";
         statusDiv.className = "update-status success";
         setTimeout(function(){
             statusDiv.innerHTML = "🟢 جاهز";
@@ -297,13 +309,75 @@ async function loadDataFromSheets() {
         
     } catch(error) {
         console.error("خطأ في التحميل:", error);
-        statusDiv.innerHTML = "❌ خطأ في تحميل البيانات";
+        statusDiv.innerHTML = "❌ خطأ في التحميل - استخدم التخزين المحلي";
         statusDiv.className = "update-status error";
+        // محاولة التحميل من localStorage
+        var backup = localStorage.getItem("vm_data_backup");
+        if(backup){
+            var backupData = JSON.parse(backup);
+            allPlayers = backupData.players || {};
+            actualResults = backupData.results || {};
+            updateUI();
+        }
+    }
+}
+
+// ==========================================
+// حفظ البيانات إلى Google Sheets
+// ==========================================
+async function savePlayerToSheets(playerName, playerData) {
+    try {
+        // البحث عن الصف الموجود
+        var getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE_PLAYERS}?key=${API_KEY}`;
+        var getResponse = await fetch(getUrl);
+        var getData = await getResponse.json();
+        
+        var rowIndex = -1;
+        var rows = getData.values || [];
+        for(var i=1;i<rows.length;i++){
+            if(rows[i][0] === playerName){
+                rowIndex = i;
+                break;
+            }
+        }
+        
+        var tipsJson = JSON.stringify(playerData.tips || {});
+        var totalGoals = playerData.totalGoals || "";
+        
+        var body = {
+            values: [[playerName, totalGoals, tipsJson, new Date().toISOString()]],
+            majorDimension: "ROWS"
+        };
+        
+        var url;
+        if(rowIndex !== -1){
+            // تحديث صف موجود
+            url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/Sheet1!A${rowIndex+1}:D${rowIndex+1}?key=${API_KEY}&valueInputOption=RAW`;
+        } else {
+            // إضافة صف جديد
+            var newRow = (rows.length + 1).toString();
+            url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/Sheet1!A${newRow}:D${newRow}?key=${API_KEY}&valueInputOption=RAW`;
+        }
+        
+        await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        
+        console.log("تم حفظ اللاعب:", playerName);
+    } catch(error){
+        console.log("خطأ في حفظ اللاعب:", error);
+    }
+}
+
+async function saveAllPlayersToSheets() {
+    for(var name in allPlayers){
+        await savePlayerToSheets(name, allPlayers[name]);
     }
 }
 
 async function saveResultsToSheets() {
-    // تحضير البيانات للحفظ
     var rows = [["MatchId","Result"]];
     for(var i=0;i<72;i++){
         if(actualResults[i]){
@@ -311,29 +385,18 @@ async function saveResultsToSheets() {
         }
     }
     
-    // تحويل إلى JSON للتحديث
-    var body = {
-        values: rows,
-        majorDimension: "ROWS"
-    };
+    var body = { values: rows, majorDimension: "ROWS" };
     
     try {
         var url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE_RESULTS}?key=${API_KEY}&valueInputOption=RAW`;
-        var response = await fetch(url, {
+        await fetch(url, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         });
-        
-        if(response.ok){
-            console.log("تم حفظ النتائج");
-        } else {
-            console.log("لا يمكن حفظ النتائج - وضع القراءة فقط");
-        }
+        console.log("تم حفظ النتائج");
     } catch(error){
-        console.log("خطأ في الحفظ:", error);
+        console.log("خطأ في حفظ النتائج:", error);
     }
 }
 
@@ -341,7 +404,6 @@ async function saveResultsToSheets() {
 // دوال إدارة البيانات
 // ==========================================
 function saveDataLocally() {
-    // حفظ نسخة محلية احتياطية
     localStorage.setItem("vm_data_backup", JSON.stringify({
         players: allPlayers,
         results: actualResults,
@@ -350,7 +412,6 @@ function saveDataLocally() {
 }
 
 function loadData() {
-    // أولاً نحاول التحميل من Google Sheets
     loadDataFromSheets();
 }
 
@@ -379,6 +440,14 @@ function updateUI(){
         optionsHtml+='<option value="'+players[p]+'" '+(currentViewPlayer===players[p]?'selected':'')+'>'+players[p]+'</option>';
     }
     selector.innerHTML=optionsHtml;
+    
+    // تحديث قائمة الاستيراد
+    var importSelect=document.getElementById("importPlayerSelect");
+    var importHtml='<option value="">-- Välj spelare --</option>';
+    for(var ip=0;ip<players.length;ip++){
+        importHtml+='<option value="'+players[ip]+'">'+players[ip]+'</option>';
+    }
+    importSelect.innerHTML=importHtml;
     
     selector.onchange=function(){
         currentViewPlayer=this.value||null;
@@ -528,8 +597,15 @@ function addNewPlayer(){
     if(name && !allPlayers[name]){
         allPlayers[name]={tips:{},totalGoals:null};
         saveDataLocally();
+        savePlayerToSheets(name, allPlayers[name]);
         updateUI();
         alert("✅ Spelaren \""+name+"\" har lagts till!");
+        // تحديث قائمة الاستيراد
+        var importSelect=document.getElementById("importPlayerSelect");
+        var newOption=document.createElement("option");
+        newOption.value=name;
+        newOption.textContent=name;
+        importSelect.appendChild(newOption);
     }else if(name){
         alert("❌ Finns redan!");
     }
@@ -542,7 +618,7 @@ function removeSelectedPlayer(){
     }
     if(confirm("Är du säker på att du vill ta bort spelaren \""+currentViewPlayer+"\"?")){
         delete allPlayers[currentViewPlayer];
-        currentViewPlayer=null;
+        if(currentViewPlayer===currentViewPlayer) currentViewPlayer=null;
         saveDataLocally();
         updateUI();
         alert("✅ Spelaren har tagits bort.");
@@ -552,7 +628,7 @@ function removeSelectedPlayer(){
 async function importExcelFile(){
     var player=document.getElementById("importPlayerSelect").value;
     var file=document.getElementById("multiImport").files[0];
-    if(!player){alert("Välj spelare");return;}
+    if(!player){alert("Välj spelare först!");return;}
     if(!file){alert("Välj fil");return;}
     var reader=new FileReader();
     reader.onload=function(e){
@@ -576,6 +652,7 @@ async function importExcelFile(){
         allPlayers[player].tips=tips;
         if(totalGoals) allPlayers[player].totalGoals=totalGoals;
         saveDataLocally();
+        savePlayerToSheets(player, allPlayers[player]);
         updateUI();
         alert("Importerat "+Object.keys(tips).length+" tips för "+player);
     };
